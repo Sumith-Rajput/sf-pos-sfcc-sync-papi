@@ -56,10 +56,12 @@ http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/em
 				</on-error-propagate>
 			</error-handler>
 		</try>
-		<logger level="DEBUG" doc:name="Logger" doc:id="ef38a5c0-3c40-4207-93ed-1c3b64668967" message="#[mule.home]" category="${logger.category}" />
-		<file:read path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\" ++ payload.attributes[0].fileName]' outputMimeType="text/csv">
+		<logger level="DEBUG" doc:name="Debug" doc:id="ef38a5c0-3c40-4207-93ed-1c3b64668967" message="#[mule.home]" category="${logger.category}" />
+		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="08e93af7-5281-471f-8641-360f64562518" millisBetweenRetries="${untilSuccess.retriesInterval}">
+			<file:read path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\" ++ payload.attributes[0].fileName]' outputMimeType="text/csv" doc:name="Read Full Inventory file">
   			<reconnect />
 		</file:read>
+		</until-successful>
 		<batch:job jobName="sf-pos-sfcc-sync-papiBatch_Job" doc:id="1de11448-422f-49ff-b7ab-b528e4a19f60" maxFailedRecords="-1" blockSize="1000">
 			<batch:process-records>
 				<batch:step name="validate-and-process-records" doc:id="f94e0ea6-abd4-4b7b-b8e2-a9a2c7f9dfc3" acceptPolicy="ALL">
@@ -155,16 +157,17 @@ var s = write(payload,"application/json")
 				</batch:step>
 			</batch:process-records>
 			<batch:on-complete>
-				<ee:transform doc:name="Transform Message" doc:id="f7d4eaf6-b76d-40df-939c-ba30a64834f8">
+				<!-- [STUDIO:"Transform Message"]<ee:transform doc:name="Transform Message" doc:id="f7d4eaf6-b76d-40df-939c-ba30a64834f8">
 					<ee:message>
 						<ee:set-payload><![CDATA[%dw 2.0
 output application/json
----
-payload]]></ee:set-payload>
+&#45;&#45;-
+payload&#93;&#93;></ee:set-payload>
 					</ee:message>
-				</ee:transform>
+				</ee:transform> [STUDIO] -->
 				<choice doc:name="Choice" doc:id="9fa79ff7-0f6a-4eb0-b998-e33f1278e73b">
 					<when expression="#[payload.failedRecords &gt; 0]">
+						<logger level="INFO" doc:name="Failed Records" doc:id="2c47fca3-78d6-46de-94b4-af8dedb45279" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Total failed records: " ++ (payload.failedRecords),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}]' category="${logger.category}"/>
 						<sqs:get-approximate-number-of-messages doc:name="Get approximate number of messages" doc:id="06b6d891-b0fe-4af1-993a-c8244fc22bfd" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
 						<ee:transform doc:name="Transform Message" doc:id="d5db97f2-b756-4f37-8ea1-a979b2d79ef6">
 							<ee:message>
@@ -241,9 +244,10 @@ write(rows, "application/csv", { header: true })]]></ee:set-variable>
 						<flow-ref doc:name="Flow Reference" doc:id="f7c5daf9-883d-453d-9b38-a6fbe51046c8" name="send-email-notification-subflow" />
 					</when>
 					<otherwise>
-						<logger level="INFO" doc:name="Exit" doc:id="b5aea13d-f5a3-4e36-8bf5-d3b2ed285d9a" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' />
+						<logger level="INFO" doc:name="Exit" doc:id="b5aea13d-f5a3-4e36-8bf5-d3b2ed285d9a" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "No failures occured in Sync Job for " ++ (vars.jobStartTime as Date {format:"dd-MM-YYYY"}),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}]' />
 					</otherwise>
 				</choice>
+				<logger level="INFO" doc:name="End" doc:id="bcff72b3-d6cf-4f7e-a98b-832b664c5fcf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}"/>
 			</batch:on-complete>
 		</batch:job>
 	</flow>
