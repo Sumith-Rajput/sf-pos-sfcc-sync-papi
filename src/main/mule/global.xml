@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp"
+	xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+	<configuration-properties doc:name="Configuration properties" doc:id="e388277e-4310-4272-bc6e-bebae01cc84e" file="config\common-config.yaml" />
+	<configuration-properties doc:name="Configuration properties" doc:id="ac6283a6-6d49-4c89-8ad7-07a21b0f9460" file="config/dev.yaml" />
+	<sqs:config name="aws-sqs-prod-falires-config" doc:name="Amazon SQS Configuration" doc:id="d9c99e97-012b-42fb-abd5-07f3b13b291b" >
+			<sqs:basic-connection testQueueArn="${aws.sqs.productFailures.queueArn}" accessKey="${secure::aws.accessKey}" secretKey="${secure::aws.secretKey}" region="${aws.sqs.productFailures.region}" />
+		</sqs:config>
+	<!-- <sftp:config name="SFTP_Config" doc:name="SFTP Config" doc:id="2f674eca-6e49-48ba-b8b5-6be654653b4e" >
+		<sftp:connection host="${sftp.pos.host}" port="${sftp.pos.port}" username="${sftp.pos.username}" identityFile="${sftp.pos.keyfile}" />
+	</sftp:config> -->
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="eeeb7b45-2478-4df2-9ff1-5bfb76b8ffe8" entryTtl="24" entryTtlUnit="HOURS" config-ref="ObjectStore_Config"/>
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="675ef96e-220f-428c-ab5a-533ee79aa29a" />
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="34706ac7-c589-4a47-b26f-da90feb6074e" >
+		<email:smtps-connection host="${email.smtp.host}" user="${secure::smtp.user}" password="${secure::smtp.password}" port="${email.smtp.private.port}">
+			<tls:context >
+				<tls:trust-store insecure="true" />
+
+			</tls:context>
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		
+</email:smtps-connection>
+	</email:smtp-config>
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="04ba1e13-82af-4f37-b002-02b83b5dc2ec" file="config/${env}-secure.yaml" key="${env.key}" />
+</mule>

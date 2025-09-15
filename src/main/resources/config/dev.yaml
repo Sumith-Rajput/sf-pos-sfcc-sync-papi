@@ -1,0 +1,32 @@
+sftp:
+  pos:
+    host: "s-9b09755509e84ad88.server.transfer.ap-south-1.amazonaws.com"
+    port: "22"
+    username: "dev-int-user"
+    basepath: "/sf-pos-products-bucket-dev"
+    productPath: "/export"
+    productFilename: "*.csv"
+    keyfile: "ssh/pos-products"
+    
+aws:
+  sqs:
+    productFailures:
+      queueUrl: "https://sqs.ap-south-1.amazonaws.com/132292823736/sf-failed-products-queue.fifo"
+      queueArn: "arn:aws:sqs:ap-south-1:132292823736:sf-failed-products-queue.fifo"
+      queueMessageCount: "10"
+      region: "ap-south-1"
+    listener:
+      pollingFrequency: "1000"
+      retryFrequency: "20000"
+      retryAttemptCount: "2"
+      visibilityTimeout: "60"
+      
+email:
+  ops:
+    fromAddress: "testmule2514@gmail.com"
+    toAddress:  "sumith.singh0325@gmail.com"
+    supportTeam: "IT Ops Team"
+  smtp:
+    host: "smtp.gmail.com"
+    private:
+      port: "465"    

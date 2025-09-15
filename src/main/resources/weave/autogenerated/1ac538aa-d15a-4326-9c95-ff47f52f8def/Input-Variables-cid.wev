@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_1ac538aa_d15a_4326_9c95_ff47f52f8def_Input_Variables_cid = Any
+

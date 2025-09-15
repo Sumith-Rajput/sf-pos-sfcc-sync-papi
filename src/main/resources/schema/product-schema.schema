@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Records schema",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["SKU", "StoreId", "Type", "Quantity", "Timestamp"],
+    "properties": {
+      "SKU":       { "type": "string", "pattern": "^(?!\\s*$).+" },
+      "StoreId":   { "type": "string", "pattern": "^(?!\\s*$).+" },
+      "Type":      { "type": "string", "pattern": "^(?!\\s*$).+" },
+      "Quantity":  { "type": "string", "pattern": "^(?!\\s*$).+" },
+      "Timestamp": { "type": "string", "pattern": "^(?!\\s*$).+" }
+    }
+  }
+}

@@ -1,1 +1,0 @@
-# sf-pos-sfcc-sync-papi

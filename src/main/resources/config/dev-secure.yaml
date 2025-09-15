@@ -1,0 +1,13 @@
+smtp:
+  user: "![cqTGnXTaJyPg+7W6X8/m6brqQ68OHzutqw+lFFOYdec=]"
+  password: "![08sX/MynudEDw1aW6yNO1yunIADBVJfbAD/JxzR8FbQ=]"
+  
+aws:
+  accessKey: "![4F0LBWRi/LKZ1NvSz7HRVMTVOnEkfB6QODRfqKUmxTM=]"
+  secretKey: "![J6sQs0s9OTWs5X02aWaOWSWhtZ/Go39dURXXdLrb5jGhQMlL0KLBndsHPCUjZR+m]"
+  
+sftp:
+  pos:
+    username: "![+O0hGysuA0h9jnFc11C26g==]"
+    passphrase: ""
+  

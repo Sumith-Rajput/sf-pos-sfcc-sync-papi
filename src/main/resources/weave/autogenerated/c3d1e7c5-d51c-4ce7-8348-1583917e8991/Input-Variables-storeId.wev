@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_c3d1e7c5_d51c_4ce7_8348_1583917e8991_Input_Variables_storeId = String
+

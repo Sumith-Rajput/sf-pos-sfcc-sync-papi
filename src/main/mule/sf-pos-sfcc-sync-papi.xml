@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="db417f83-9790-4d2a-83e7-48e865a3e772" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="sf-pos-sfcc-sync-papiFlow" doc:id="7176be6c-da4a-4145-94af-3fe7f23e3839">
+		<scheduler doc:name="Nightly Job Run at 4AM" doc:id="8a6814ad-bb31-4d64-87cf-414709466dab">
+			<scheduling-strategy>
+				<cron expression="${scheduler.productSync.cron}" timeZone="${scheduler.productSync.timezone}" />
+			</scheduling-strategy>
+		</scheduler>
+		<ee:transform doc:name="Job ID" doc:id="0ae36fd9-6e45-473e-8bc2-a4408612f4e4">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="cid"><![CDATA[attributes.headers.correlationId default uuid()]]></ee:set-variable>
+				<ee:set-variable variableName="jobId"><![CDATA[attributes.headers.transactionId default uuid()]]></ee:set-variable>
+				<ee:set-variable variableName="jobStartTime"><![CDATA[now()]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Start" doc:id="de7699cd-6196-4f52-abc0-505092f9a34c" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Started.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "START"&#10;}]' />
+		<try doc:name="Try" doc:id="0c68b1cb-7d42-4936-b10b-6e71422d3c68">
+			<file:list doc:name="List" doc:id="3a203ae6-8891-4566-b415-630f0eca9698" directoryPath="C:\Users\sumkumar51\sf-usecase\POS" />
+			<validation:is-true doc:name="Is true" doc:id="2208ae29-4c9f-4516-a130-1cda43ec5759" expression="#[!isEmpty(payload)]" message="File Not Found">
+				<error-mapping sourceType="VALIDATION:INVALID_BOOLEAN" targetType="APP:FILE_NOT_FOUND" />
+			</validation:is-true>
+			<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f6de7e1a-5c56-4b2f-90f6-d45f46773fe9" type="APP:FILE_NOT_FOUND">
+					<logger level="ERROR" doc:name="No File Error" doc:id="90d4c493-5547-443b-a3da-8ea6fa233ccf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "No File present in POS SFTP.",&#10;	"ErrorType": error.errorType default "MULE:UNKNWON",&#10;	"ErrorDescription": error.description default "Unknown Error Occured.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "EXCEPTION"&#10;}]' category="${logger.category}" />
+					<ee:transform doc:name="Transform Message" doc:id="995074b7-21bb-402f-8c12-7175cd5aa422">
+						<ee:message>
+						</ee:message>
+						<ee:variables>
+							<ee:set-variable variableName="emailSub"><![CDATA["No Inventory file was found in DB for: " ++ vars.jobStartTime as Date {format:"dd-MM-YYYY"}]]></ee:set-variable>
+							<ee:set-variable variableName="emailBody"><![CDATA["There was no inventory file in the POS SFTP. Please look into this on priority."]]></ee:set-variable>
+							<ee:set-variable variableName="supportTeam"><![CDATA[p("email.ops.supportTeam")]]></ee:set-variable>
+							<ee:set-variable variableName="fromAddress"><![CDATA[p("email.ops.fromAddress")]]></ee:set-variable>
+							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<flow-ref doc:name="Flow Reference" doc:id="de39a531-1e8e-4cb5-9fa9-4a6451253070" name="send-email-notification-subflow" />
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<logger level="DEBUG" doc:name="Logger" doc:id="ef38a5c0-3c40-4207-93ed-1c3b64668967" message="#[mule.home]" category="${logger.category}" />
+		<file:read path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\" ++ payload.attributes[0].fileName]' outputMimeType="text/csv">
+  			<reconnect />
+		</file:read>
+		<batch:job jobName="sf-pos-sfcc-sync-papiBatch_Job" doc:id="1de11448-422f-49ff-b7ab-b528e4a19f60" maxFailedRecords="-1" blockSize="1000">
+			<batch:process-records>
+				<batch:step name="validate-and-process-records" doc:id="f94e0ea6-abd4-4b7b-b8e2-a9a2c7f9dfc3" acceptPolicy="ALL">
+					<ee:transform doc:name="To Json" doc:id="72098a29-184d-4e43-befb-a93775dc6de9">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<json:validate-schema doc:name="Validate Record" doc:id="bb5c2d78-e5d4-47fb-9101-eab3e24945d6" schema="schema/product-schema.schema" />
+					<ee:transform doc:name="Record Vars" doc:id="5e426d2e-0110-4323-9f20-989a94effb6a">
+						<ee:message>
+						</ee:message>
+						<ee:variables>
+							<ee:set-variable variableName="hdrKey"><![CDATA["hdr::" ++ (payload[0].StoreId default "UNKNOWN")]]></ee:set-variable>
+							<ee:set-variable variableName="filename"><![CDATA["inventory_" ++ (payload[0].StoreId default "UNKOWN") ++ "_" ++ (now() as Date {format: "ddMMyyyy"}) ++ ".csv" ]]></ee:set-variable>
+							<ee:set-variable variableName="storeId"><![CDATA[(payload[0].StoreId default "UNKNOWN") as String]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<os:contains doc:name="If Store Record is processed ?" doc:id="bbd31146-d7df-4596-aae3-76cf1878e4a0" key="#[vars.hdrKey]" objectStore="Object_store" target="hasHeader" />
+					<choice doc:name="Choice" doc:id="532f3b18-d953-4956-8d8b-899ec40211eb">
+						<when expression="#[!(vars.hasHeader default false)]">
+							<ee:transform doc:name="to CSV" doc:id="5caa6829-26b8-4984-af53-a8ee7b8470fb">
+								<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/csv header=true
+---
+payload]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<until-successful doc:name="Until Successful" doc:id="20ae6c80-9084-4784-b696-95ef5a45a24c" maxRetries="${untilSuccess.retriesCount}" millisBetweenRetries="${untilSuccess.retriesInterval}">
+								<file:write doc:name="Write" doc:id="1916a7c1-f0ba-4559-9557-76018a9b7d7a" path='#["C:\\Users\\sumkumar51\\sf-usecase\\SFCC\\" ++ vars.filename]' mode="APPEND" />
+							</until-successful>
+							<os:store doc:name="Store" doc:id="bac35b51-6121-43fa-b2bd-83c2ae442d23" key="#[vars.hdrKey]" objectStore="Object_store">
+								<os:value><![CDATA[#[true]]]></os:value>
+							</os:store>
+						
+</when>
+						<otherwise>
+							<ee:transform doc:name="to CSV" doc:id="9f739808-ee3c-46da-a4c0-6930ee6d89c5">
+								<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/csv header=false
+---
+payload]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="6bbc6fbc-67a4-4643-a128-cc0aa5c466e4" millisBetweenRetries="${untilSuccess.retriesInterval}">
+								<file:write doc:name="Write" doc:id="85f8b9f3-22ce-4e2f-acd1-bb935b8861c1" path='#["C:\\Users\\sumkumar51\\sf-usecase\\SFCC\\" ++ vars.filename]' mode="APPEND" />
+							</until-successful>
+						
+</otherwise>
+					</choice>
+				</batch:step>
+				<batch:step name="process-failed-records" doc:id="e66a8292-d4c0-4a4d-bdb3-99646dab506f" acceptPolicy="ONLY_FAILURES">
+					<ee:transform doc:name="Transform Message" doc:id="d3fe405e-7482-4dfa-a6fd-248c40298783">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<ee:transform doc:name="Transform Message" doc:id="79a3e9e8-3b2e-48e9-abc3-0d3f7945ec06">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var s = write(payload,"application/json")
+---
+{
+	delaySeconds: 0,
+	body: s,
+	deduplicationId: uuid(),
+	groupId: uuid(),
+	messageAttributes: {
+		"ObjectType": {
+			"stringValue" : "Products",
+			"dataType" : "String.Product"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<sqs:send-message doc:name="Send message" doc:id="84fdb861-b3e8-40fc-90a6-57ba017c7627" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete>
+				<ee:transform doc:name="Transform Message" doc:id="f7d4eaf6-b76d-40df-939c-ba30a64834f8">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<choice doc:name="Choice" doc:id="9fa79ff7-0f6a-4eb0-b998-e33f1278e73b">
+					<when expression="#[payload.failedRecords &gt; 0]">
+						<sqs:get-approximate-number-of-messages doc:name="Get approximate number of messages" doc:id="06b6d891-b0fe-4af1-993a-c8244fc22bfd" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
+						<ee:transform doc:name="Transform Message" doc:id="d5db97f2-b756-4f37-8ea1-a979b2d79ef6">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+1 to (ceil(payload/(p("aws.sqs.productFailures.queueMessageCount") as Number)))]]></ee:set-payload>
+							</ee:message>
+							<ee:variables>
+								<ee:set-variable variableName="failedSkus"><![CDATA[[]]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<parallel-foreach doc:name="Parallel For Each" doc:id="37c873dd-84e2-44d9-9408-3e4ade3a5009">
+							<sqs:read doc:name="Read" doc:id="4ceae3da-f35d-438f-b095-ddff38c94cf2" config-ref="aws-sqs-prod-falires-config" maxNumberOfMessages="${aws.sqs.productFailures.queueMessageCount}" queueUrl="${aws.sqs.productFailures.queueUrl}" />
+							<ee:transform doc:name="Transform Message" doc:id="fc8c5e69-41c9-4a19-ab8a-ff3145a0acc2">
+							<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload.body]]></ee:set-payload>
+							</ee:message>
+								<ee:variables>
+								</ee:variables>
+						</ee:transform>
+						</parallel-foreach>
+						<ee:transform doc:name="Transform Message" doc:id="03847c51-4073-4e5e-b6d4-2fabf4acbf54">
+							<ee:message>
+							</ee:message>
+							<ee:variables>
+								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
+output application/csv header=true
+var a = flatten(payload.payload)
+---
+(a default [])
+    // drop nulls
+    filter ($ != null)
+    // parse JSON strings to objects
+    map (it) -> if (it is String) read(it, "application/json") else it
+    // normalize fields
+    map (r) -> {
+      SKU:       (r.SKU       default "") as String,
+      StoreId:   (r.StoreId   default "") as String,
+      Type:      (r.Type      default "") as String,
+      Quantity:  (r.Quantity  default "") as String,
+      Timestamp: (r.Timestamp default "") as String
+    }
+]]></ee:set-variable>
+								<ee:set-variable variableName="failureCount"><![CDATA[%dw 2.0
+output application/java
+---
+sizeOf(payload)]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<ee:transform doc:name="Transform Message" doc:id="7247d1c4-c757-44cc-a251-ea5e5ef2663f">
+							<ee:message>
+							</ee:message>
+							<ee:variables>
+							<ee:set-variable variableName="emailSub"><![CDATA["Failed Skus from Inventory Sync for: " ++ vars.jobStartTime as Date {format:"dd-MM-YYYY"}]]></ee:set-variable>
+							<ee:set-variable variableName="emailBody"><![CDATA["Some SKUS were failed in Job processing. Please look into this on priority."]]></ee:set-variable>
+							<ee:set-variable variableName="supportTeam"><![CDATA[p("email.ops.supportTeam")]]></ee:set-variable>
+							<ee:set-variable variableName="fromAddress"><![CDATA[p("email.ops.fromAddress")]]></ee:set-variable>
+							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")]]></ee:set-variable>
+								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
+output text/plain
+var rows =
+      (vars.failedSkus default [])
+        // if elements are JSON strings, parse them:
+        map (it) -> if (it is String) read(it, "application/json") else it
+---
+write(rows, "application/csv", { header: true })]]></ee:set-variable>
+						
+							</ee:variables>
+						</ee:transform>
+						<flow-ref doc:name="Flow Reference" doc:id="f7c5daf9-883d-453d-9b38-a6fbe51046c8" name="send-email-notification-subflow" />
+					</when>
+					<otherwise>
+						<logger level="INFO" doc:name="Exit" doc:id="b5aea13d-f5a3-4e36-8bf5-d3b2ed285d9a" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' />
+					</otherwise>
+				</choice>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd">
+	<sub-flow name="send-email-notification-subflow" doc:id="c3d1e7c5-d51c-4ce7-8348-1583917e8991" doc:description="The subflow build the email template required by the email connector. Email Connector is kept under Until Successful scope which means if there is any connectivity issue happens in first attempt it will retried for specified number of time in specified interval of time. After all the retries are exhausted ">
+		<logger level="INFO" doc:name="Start" doc:id="3eb3d58d-f2b4-40a7-b24f-495554ab96aa" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "send-email-notification-subflow is started.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "START"&#10;}]' category="${logger.category}"/>
+		<ee:transform doc:name="Build Email Template" doc:id="cc0c3b3b-9076-40cc-9abb-12536a7a9dbc">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+				<ee:set-variable resource="dwl/email-template.dwl" variableName="emailTemplate" />
+				<ee:set-variable variableName="attachment" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	(("failed_skus_" ++ (vars.jobStartTime as Date {format:"ddMMYYYY"} as String) ++ ".csv"): vars.failedSkus) if(!isEmpty(vars.failedSkus))
+}]]></ee:set-variable>
+					
+</ee:variables>
+				</ee:transform>
+		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="bd655f4f-5a10-437a-b821-90d2ff6a3c46" millisBetweenRetries="${untilSuccess.retriesInterval}">
+				<try doc:name="Try" doc:id="55b972da-63c8-4a33-b852-06276d4d390c" >
+				<email:send doc:name="Send" config-ref="Email_SMTP"
+            subject='#[vars.emailTemplate.emailSubject as String]' fromAddress="#[vars.emailTemplate.fromAddress as String]">
+
+  <email:to-addresses>
+    <email:to-address value="#[vars.emailTemplate.toAddress]"/>
+  </email:to-addresses>
+
+  <email:body>
+    <email:content><![CDATA[#[vars.emailTemplate.emailBody]]]></email:content>
+  </email:body>
+					<email:attachments ><![CDATA[#[vars.attachment default {}]]]></email:attachments>
+
+</email:send>
+
+				<error-handler >
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="3c18f6ac-0c5c-428d-a1fb-36b572681e90" type="EMAIL:CONNECTIVITY, EMAIL:RETRY_EXHAUSTED, EMAIL:SEND">
+						<ee:transform doc:name="Custom Error Payload" doc:id="9368bfc1-5e2b-422c-833e-6bd2378d704c" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{	messageId: vars.sqsMetadata.messageId,
+	logMessage: "Email notification was not sent for the user: " ++ (vars.sfMetadata.sfId default ""),
+	errorType: error.errorType,
+	errorDescription: error.description,
+	status: "Failed",
+	startTimestamp: now() >> "UTC"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="Error Log" doc:id="f0dd9fa4-90f4-48f6-bdf9-ea35dc27f670" message="#[payload]"/>
+					</on-error-propagate>
+				</error-handler>
+			</try>
+			</until-successful>
+			<logger level="INFO" doc:name="End" doc:id="112c4973-e934-4960-ad1f-fee8a6303375" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "send-email-notification-subflow is ended.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}"/>
+		</sub-flow>
+</mule>
