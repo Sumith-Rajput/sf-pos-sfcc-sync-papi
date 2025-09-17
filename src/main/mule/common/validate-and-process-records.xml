@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<sub-flow name="validate-and-process-records-subflow" doc:id="b5110c7b-d13a-4e82-8ca5-bbabcef56f47" >
+		<ee:transform doc:name="To Json" doc:id="ddafc32e-6a66-44a1-8bcb-e6f286a6ed8b">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+		<json:validate-schema doc:name="Validate Record" doc:id="722524a6-39d3-41ea-a9f9-a42070c1eff4" schema="schema/product-schema.schema" />
+		<ee:transform doc:name="Record Vars" doc:id="a274f069-2c00-4d7b-8399-47b8ec06fbe2">
+						<ee:message>
+						</ee:message>
+						<ee:variables>
+							<ee:set-variable variableName="hdrKey"><![CDATA["hdr::" ++ (payload[0].StoreId default "UNKNOWN")]]></ee:set-variable>
+							<ee:set-variable variableName="filename"><![CDATA["inventory_" ++ (payload[0].StoreId default "UNKOWN") ++ "_" ++ (now() as Date {format: "ddMMyyyy"}) ++ ".csv" ]]></ee:set-variable>
+							<ee:set-variable variableName="storeId"><![CDATA[(payload[0].StoreId default "UNKNOWN") as String]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+		<os:contains doc:name="If Store Record is processed ?" doc:id="97109aab-ab68-40e2-aca0-dc7104dd16c3" key="#[vars.hdrKey]" objectStore="Object_store" target="hasHeader" />
+		<choice doc:name="Choice" doc:id="119b895b-63c6-4caf-ae18-bd239ba735ba">
+						<when expression="#[!(vars.hasHeader default false)]">
+							<ee:transform doc:name="to CSV" doc:id="32636ef2-09f3-4f62-8196-ab03a50be9b0">
+								<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/csv header=true
+---
+payload]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<until-successful doc:name="Until Successful" doc:id="a3ec8137-f7fd-4faa-b6cd-4e6ffc9a4199" maxRetries="${untilSuccess.retriesCount}" millisBetweenRetries="${untilSuccess.retriesInterval}">
+								<file:write doc:name="Write" doc:id="775323cd-d56f-4fe0-8c95-29b5027907f2" path='#[p("app.home") ++ "/output/" ++ vars.filename]' mode="APPEND" />
+							</until-successful>
+							<os:store doc:name="Store" doc:id="894f9072-40dc-422c-99a6-cb271584e367" key="#[vars.hdrKey]" objectStore="Object_store">
+								<os:value><![CDATA[#[true]]]></os:value>
+							</os:store>
+						
+</when>
+						<otherwise>
+							<ee:transform doc:name="to CSV" doc:id="fe0b85be-4c6d-4b12-aea8-c234de3b00e1">
+								<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/csv  header=false
+---
+payload]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="a751240a-5e28-4dac-afb9-0b49fc7a06c5" millisBetweenRetries="${untilSuccess.retriesInterval}">
+								<file:write doc:name="Write" doc:id="dbb4a75a-1485-4f06-9ea4-3e5716e784d6" path='#[p("app.home") ++ "/output/" ++ vars.filename]' mode="APPEND" />
+							</until-successful>
+						
+</otherwise>
+					</choice>
+	
+</sub-flow>
+	</mule>

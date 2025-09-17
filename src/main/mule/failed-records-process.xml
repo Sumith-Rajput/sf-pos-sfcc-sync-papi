@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<!-- [STUDIO:"failed-records-redelivery-flow"]<flow name="failed-records-redelivery-flow" doc:id="e00a2455-8aa2-4e46-8071-cc2a1bd8a902" initialState="stopped">
+		<scheduler doc:name="Reprocess of Failed Records" doc:id="1afae924-54e9-43c0-adf3-8cb95be69265" >
+			<scheduling-strategy >
+				<cron expression="${scheduler.failedProducts.cron}" timeZone="${scheduler.failedProducts.timezone}" />
+			</scheduling-strategy>
+		</scheduler>
+		<ee:transform doc:name="Init Vars" doc:id="d237b178-3bda-4b0d-a37a-2e857cc6b45f">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="jobStartTime"><![CDATA[now()&#93;&#93;></ee:set-variable>
+				<ee:set-variable variableName="jobId"><![CDATA[attributes.headers.transactionId default uuid()&#93;&#93;></ee:set-variable>
+				<ee:set-variable variableName="cid"><![CDATA[attributes.headers.correlationId default uuid()&#93;&#93;></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Start" doc:id="212b6397-4758-45a9-b5c8-d6135d4f585b" message='#[%dw 2.0&#10;output application/json&#10;&#45;&#45;-&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Process Failed records Job has Started.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "START"&#10;}&#93;' category="${logger.category}"/>
+		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="94e71f79-ddf4-44da-a7a7-6bb7cc05f512" millisBetweenRetries="${untilSuccess.retriesInterval}">
+			<file:read path='#["C:\Users\sumkumar51\sf-usecase\POS\error\\failed_skus_" ++ (now() as Date {format: "dd-MM-YYY"} as String) ++ ".csv"&#93;' outputMimeType="text/csv" doc:name="Read Failed Records">
+  			<reconnect />
+		</file:read>
+		</until-successful>
+		<batch:job jobName="failed-records-processBatch_Job" doc:id="96c546d2-4fc9-4b15-be1e-30e9828d7667" maxFailedRecords="-1">
+			<batch:process-records >
+				<batch:step name="redeliver-failed-records" doc:id="e0e11acb-e6e2-4a0a-867b-2ca1cce26224" acceptPolicy="ALL">
+					<flow-ref doc:name="Validate and Process Records" doc:id="ed8b09fc-ad82-4356-ac46-52676fd8893f" name="validate-and-process-records-subflow"/>
+				</batch:step>
+				<batch:step name="Batch_Step" doc:id="4a21bfab-d60b-41ca-9783-961f22061952" >
+					<ee:transform doc:name="Transform Message" doc:id="f79665e3-6195-4e4f-a0a1-e621c36c0bf6" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+payload&#93;&#93;></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Redelivery Status Log" doc:id="a79485fb-4fd3-48c5-97d5-8adfd2bda324" message='#[%dw 2.0&#10;output application/json&#10;&#45;&#45;-&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Record reprocessed Succefully. SKU: " ++ (payload[0&#93;.SKU as String default ""),&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "END"&#10;}&#93;' category="${logger.category}"/>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<ee:transform doc:name="Transform Message" doc:id="fa9d4201-9508-4ecd-b773-b6a1813c275d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+payload&#93;&#93;></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End" doc:id="2843a026-5f8a-44f3-85e1-b844cca81a79" message='#[%dw 2.0&#10;output application/json&#10;&#45;&#45;-&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Process Failed records Job has Ended.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "END"&#10;}&#93;' category="${logger.category}" />
+			</batch:on-complete>
+		</batch:job>
+	</flow> [STUDIO] -->
+</mule>

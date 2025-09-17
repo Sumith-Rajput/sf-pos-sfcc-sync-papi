@@ -2,11 +2,15 @@ scheduler:
   productSync:
     cron: "0 0/15 * * * ?"     #"0 0 4 * * ?"
     timezone: "IST"
-    
+  failedProducts:
+    cron:  "0 0/15 * * * ?"                    #"0 0 5-10 ? * *"
+    timezone: "IST"
 logger:
   category: "sf-pos-sfcc-sync-papi"
   
 untilSuccess:
   retriesCount: "3"
   retriesInterval: "10000"
+  
+  
   

@@ -9,8 +9,13 @@
     "properties": {
       "SKU":       { "type": "string", "pattern": "^(?!\\s*$).+" },
       "StoreId":   { "type": "string", "pattern": "^(?!\\s*$).+" },
-      "Type":      { "type": "string", "pattern": "^(?!\\s*$).+" },
-      "Quantity":  { "type": "string", "pattern": "^(?!\\s*$).+" },
+      "Type":      { "type": "string", "enum": ["Standard", "Backorder"] },
+      "Quantity":  {
+    "anyOf": [
+      { "type": "integer", "minimum": 0, "multipleOf": 1 },
+      { "type": "string", "pattern": "^\\s*\\d+\\s*$" }
+    ]
+  },
       "Timestamp": { "type": "string", "pattern": "^(?!\\s*$).+" }
     }
   }

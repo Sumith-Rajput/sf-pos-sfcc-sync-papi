@@ -14,10 +14,92 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
 http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd">
-	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="db417f83-9790-4d2a-83e7-48e865a3e772" >
-		<http:listener-connection host="0.0.0.0" port="8081" />
-	</http:listener-config>
-	<flow name="sf-pos-sfcc-sync-papiFlow" doc:id="7176be6c-da4a-4145-94af-3fe7f23e3839">
+	
+	<!-- [STUDIO:"sqs-consume-failed-skus-subflow"]<sub-flow name="sqs-consume-failed-skus-subflow" doc:id="7320cac0-d5e1-4cdc-a243-6efbbf856b01" >
+		<choice doc:name="Choice" doc:id="9fa79ff7-0f6a-4eb0-b998-e33f1278e73b">
+					<when expression="#[payload.failedRecords &gt; 0&#93;">
+						<logger level="INFO" doc:name="Failed Records" doc:id="2c47fca3-78d6-46de-94b4-af8dedb45279" message='#[%dw 2.0&#10;output application/json&#10;&#45;&#45;-&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Total failed records: " ++ (payload.failedRecords),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}&#93;' category="${logger.category}" />
+						<sqs:get-approximate-number-of-messages doc:name="Get approximate number of messages" doc:id="06b6d891-b0fe-4af1-993a-c8244fc22bfd" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
+						<ee:transform doc:name="Transform Message" doc:id="d5db97f2-b756-4f37-8ea1-a979b2d79ef6">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+1 to (ceil(payload/(p("aws.sqs.productFailures.queueMessageCount") as Number)))&#93;&#93;></ee:set-payload>
+							</ee:message>
+							<ee:variables>
+								<ee:set-variable variableName="failedSkus"><![CDATA[[&#93;&#93;&#93;></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<parallel-foreach doc:name="Parallel For Each" doc:id="37c873dd-84e2-44d9-9408-3e4ade3a5009">
+							<sqs:read doc:name="Read" doc:id="4ceae3da-f35d-438f-b095-ddff38c94cf2" config-ref="aws-sqs-prod-falires-config" maxNumberOfMessages="${aws.sqs.productFailures.queueMessageCount}" queueUrl="${aws.sqs.productFailures.queueUrl}" />
+							<ee:transform doc:name="Transform Message" doc:id="fc8c5e69-41c9-4a19-ab8a-ff3145a0acc2">
+							<ee:message>
+									<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+payload.body&#93;&#93;></ee:set-payload>
+							</ee:message>
+								<ee:variables>
+								</ee:variables>
+						</ee:transform>
+						</parallel-foreach>
+						<ee:transform doc:name="Transform Message" doc:id="03847c51-4073-4e5e-b6d4-2fabf4acbf54">
+							<ee:message>
+							</ee:message>
+							<ee:variables>
+								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
+output application/csv header=true
+var a = flatten(payload.payload)
+&#45;&#45;-
+(a default [&#93;)
+    // drop nulls
+    filter ($ != null)
+    // parse JSON strings to objects
+    map (it) -> if (it is String) read(it, "application/json") else it
+    // normalize fields
+    map (r) -> {
+      SKU:       (r.SKU       default "") as String,
+      StoreId:   (r.StoreId   default "") as String,
+      Type:      (r.Type      default "") as String,
+      Quantity:  (r.Quantity  default "") as String,
+      Timestamp: (r.Timestamp default "") as String
+    }
+&#93;&#93;></ee:set-variable>
+								<ee:set-variable variableName="failureCount"><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+sizeOf(payload)&#93;&#93;></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<ee:transform doc:name="Transform Message" doc:id="7247d1c4-c757-44cc-a251-ea5e5ef2663f">
+							<ee:message>
+							</ee:message>
+							<ee:variables>
+							<ee:set-variable variableName="emailSub"><![CDATA["Failed Skus from Inventory Sync for: " ++ vars.jobStartTime as Date {format:"dd-MM-YYYY"}&#93;&#93;></ee:set-variable>
+							<ee:set-variable variableName="emailBody"><![CDATA["Some SKUS were failed in Job processing. Please look into this on priority."&#93;&#93;></ee:set-variable>
+							<ee:set-variable variableName="supportTeam"><![CDATA[p("email.ops.supportTeam")&#93;&#93;></ee:set-variable>
+							<ee:set-variable variableName="fromAddress"><![CDATA[p("email.ops.fromAddress")&#93;&#93;></ee:set-variable>
+							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")&#93;&#93;></ee:set-variable>
+								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
+output text/plain
+var rows =
+      (vars.failedSkus default [&#93;)
+        // if elements are JSON strings, parse them:
+        map (it) -> if (it is String) read(it, "application/json") else it
+&#45;&#45;-
+write(rows, "application/csv", { header: true })&#93;&#93;></ee:set-variable>
+						
+							</ee:variables>
+						</ee:transform>
+						<flow-ref doc:name="Send Failed Records Email" doc:id="f7c5daf9-883d-453d-9b38-a6fbe51046c8" name="send-email-notification-subflow" />
+					</when>
+					<otherwise>
+						<logger level="INFO" doc:name="Exit" doc:id="b5aea13d-f5a3-4e36-8bf5-d3b2ed285d9a" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;&#45;&#45;-&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "No failures occured in Sync Job for " ++ (vars.jobStartTime as Date {format:"dd-MM-YYYY"}),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}&#93;' />
+					</otherwise>
+				</choice>
+	</sub-flow> [STUDIO] -->
+	<flow name="sf-pos-sfcc-sync-papiFlow" doc:id="7176be6c-da4a-4145-94af-3fe7f23e3839" initialState="stopped">
 		<scheduler doc:name="Nightly Job Run at 4AM" doc:id="8a6814ad-bb31-4d64-87cf-414709466dab">
 			<scheduling-strategy>
 				<cron expression="${scheduler.productSync.cron}" timeZone="${scheduler.productSync.timezone}" />
@@ -34,14 +116,18 @@ http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/em
 		</ee:transform>
 		<logger level="INFO" doc:name="Start" doc:id="de7699cd-6196-4f52-abc0-505092f9a34c" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Started.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "START"&#10;}]' />
 		<try doc:name="Try" doc:id="0c68b1cb-7d42-4936-b10b-6e71422d3c68">
-			<file:list doc:name="List" doc:id="3a203ae6-8891-4566-b415-630f0eca9698" directoryPath="C:\Users\sumkumar51\sf-usecase\POS" />
-			<validation:is-true doc:name="Is true" doc:id="2208ae29-4c9f-4516-a130-1cda43ec5759" expression="#[!isEmpty(payload)]" message="File Not Found">
+			<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="6a76c914-946b-4077-aab5-10ba97fa6504" millisBetweenRetries="${untilSuccess.retriesInterval}">
+				<file:list doc:name="List the POS inventory file" doc:id="3a203ae6-8891-4566-b415-630f0eca9698" directoryPath="${app.home}/input">
+				<file:matcher filenamePattern="${pos.filename}" />
+			</file:list>
+			</until-successful>
+			<validation:is-true doc:name="is File exist ?" doc:id="2208ae29-4c9f-4516-a130-1cda43ec5759" expression="#[!isEmpty(payload)]" message="File Not Found">
 				<error-mapping sourceType="VALIDATION:INVALID_BOOLEAN" targetType="APP:FILE_NOT_FOUND" />
 			</validation:is-true>
 			<error-handler>
 				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f6de7e1a-5c56-4b2f-90f6-d45f46773fe9" type="APP:FILE_NOT_FOUND">
 					<logger level="ERROR" doc:name="No File Error" doc:id="90d4c493-5547-443b-a3da-8ea6fa233ccf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "No File present in POS SFTP.",&#10;	"ErrorType": error.errorType default "MULE:UNKNWON",&#10;	"ErrorDescription": error.description default "Unknown Error Occured.",&#10;	"StartTime": vars.jobStartTime,&#10;	"TracePoint": "EXCEPTION"&#10;}]' category="${logger.category}" />
-					<ee:transform doc:name="Transform Message" doc:id="995074b7-21bb-402f-8c12-7175cd5aa422">
+					<ee:transform doc:name="Email Vars" doc:id="995074b7-21bb-402f-8c12-7175cd5aa422">
 						<ee:message>
 						</ee:message>
 						<ee:variables>
@@ -52,203 +138,116 @@ http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/em
 							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")]]></ee:set-variable>
 						</ee:variables>
 					</ee:transform>
-					<flow-ref doc:name="Flow Reference" doc:id="de39a531-1e8e-4cb5-9fa9-4a6451253070" name="send-email-notification-subflow" />
+					<flow-ref doc:name="Send Email Subflow" doc:id="de39a531-1e8e-4cb5-9fa9-4a6451253070" name="send-email-notification-subflow" />
 				</on-error-propagate>
 			</error-handler>
 		</try>
-		<logger level="DEBUG" doc:name="Debug" doc:id="ef38a5c0-3c40-4207-93ed-1c3b64668967" message="#[mule.home]" category="${logger.category}" />
+		<logger level="INFO" doc:name="Debug" doc:id="ef38a5c0-3c40-4207-93ed-1c3b64668967" message="${app.home}" category="${logger.category}" />
 		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="08e93af7-5281-471f-8641-360f64562518" millisBetweenRetries="${untilSuccess.retriesInterval}">
-			<file:read path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\" ++ payload.attributes[0].fileName]' outputMimeType="text/csv" doc:name="Read Full Inventory file">
+			<file:read path='#[p("app.home") ++ "/input/" ++ payload.attributes[0].fileName]' outputMimeType="text/csv" doc:name="Read Full Inventory file">
   			<reconnect />
 		</file:read>
 		</until-successful>
 		<batch:job jobName="sf-pos-sfcc-sync-papiBatch_Job" doc:id="1de11448-422f-49ff-b7ab-b528e4a19f60" maxFailedRecords="-1" blockSize="1000">
 			<batch:process-records>
 				<batch:step name="validate-and-process-records" doc:id="f94e0ea6-abd4-4b7b-b8e2-a9a2c7f9dfc3" acceptPolicy="ALL">
-					<ee:transform doc:name="To Json" doc:id="72098a29-184d-4e43-befb-a93775dc6de9">
-						<ee:message>
-							<ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-payload]]></ee:set-payload>
-						</ee:message>
-					</ee:transform>
-					<json:validate-schema doc:name="Validate Record" doc:id="bb5c2d78-e5d4-47fb-9101-eab3e24945d6" schema="schema/product-schema.schema" />
-					<ee:transform doc:name="Record Vars" doc:id="5e426d2e-0110-4323-9f20-989a94effb6a">
-						<ee:message>
-						</ee:message>
-						<ee:variables>
-							<ee:set-variable variableName="hdrKey"><![CDATA["hdr::" ++ (payload[0].StoreId default "UNKNOWN")]]></ee:set-variable>
-							<ee:set-variable variableName="filename"><![CDATA["inventory_" ++ (payload[0].StoreId default "UNKOWN") ++ "_" ++ (now() as Date {format: "ddMMyyyy"}) ++ ".csv" ]]></ee:set-variable>
-							<ee:set-variable variableName="storeId"><![CDATA[(payload[0].StoreId default "UNKNOWN") as String]]></ee:set-variable>
-						</ee:variables>
-					</ee:transform>
-					<os:contains doc:name="If Store Record is processed ?" doc:id="bbd31146-d7df-4596-aae3-76cf1878e4a0" key="#[vars.hdrKey]" objectStore="Object_store" target="hasHeader" />
-					<choice doc:name="Choice" doc:id="532f3b18-d953-4956-8d8b-899ec40211eb">
-						<when expression="#[!(vars.hasHeader default false)]">
-							<ee:transform doc:name="to CSV" doc:id="5caa6829-26b8-4984-af53-a8ee7b8470fb">
-								<ee:message>
-									<ee:set-payload><![CDATA[%dw 2.0
-output application/csv header=true
----
-payload]]></ee:set-payload>
-								</ee:message>
-							</ee:transform>
-							<until-successful doc:name="Until Successful" doc:id="20ae6c80-9084-4784-b696-95ef5a45a24c" maxRetries="${untilSuccess.retriesCount}" millisBetweenRetries="${untilSuccess.retriesInterval}">
-								<file:write doc:name="Write" doc:id="1916a7c1-f0ba-4559-9557-76018a9b7d7a" path='#["C:\\Users\\sumkumar51\\sf-usecase\\SFCC\\" ++ vars.filename]' mode="APPEND" />
-							</until-successful>
-							<os:store doc:name="Store" doc:id="bac35b51-6121-43fa-b2bd-83c2ae442d23" key="#[vars.hdrKey]" objectStore="Object_store">
-								<os:value><![CDATA[#[true]]]></os:value>
-							</os:store>
-						
-</when>
-						<otherwise>
-							<ee:transform doc:name="to CSV" doc:id="9f739808-ee3c-46da-a4c0-6930ee6d89c5">
-								<ee:message>
-									<ee:set-payload><![CDATA[%dw 2.0
-output application/csv header=false
----
-payload]]></ee:set-payload>
-								</ee:message>
-							</ee:transform>
-							<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="6bbc6fbc-67a4-4643-a128-cc0aa5c466e4" millisBetweenRetries="${untilSuccess.retriesInterval}">
-								<file:write doc:name="Write" doc:id="85f8b9f3-22ce-4e2f-acd1-bb935b8861c1" path='#["C:\\Users\\sumkumar51\\sf-usecase\\SFCC\\" ++ vars.filename]' mode="APPEND" />
-							</until-successful>
-						
-</otherwise>
-					</choice>
+					<flow-ref doc:name="Validate and Process Records" doc:id="ecab94c4-cbb5-45b5-9015-96031eb86c2e" name="validate-and-process-records-subflow" />
+
 				</batch:step>
-				<batch:step name="process-failed-records" doc:id="e66a8292-d4c0-4a4d-bdb3-99646dab506f" acceptPolicy="ONLY_FAILURES">
-					<ee:transform doc:name="Transform Message" doc:id="d3fe405e-7482-4dfa-a6fd-248c40298783">
-						<ee:message>
-							<ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-payload[0]]]></ee:set-payload>
-						</ee:message>
-					</ee:transform>
-					<ee:transform doc:name="Transform Message" doc:id="79a3e9e8-3b2e-48e9-abc3-0d3f7945ec06">
-						<ee:message>
-							<ee:set-payload><![CDATA[%dw 2.0
-output application/java
-var s = write(payload,"application/json")
----
-{
-	delaySeconds: 0,
-	body: s,
-	deduplicationId: uuid(),
-	groupId: uuid(),
-	messageAttributes: {
-		"ObjectType": {
-			"stringValue" : "Products",
-			"dataType" : "String.Product"
-		} as Object {
-			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
-		}
-	} as Object {
-		class: "java.util.HashMap"
-	}
-} as Object {
-	class: "org.mule.extension.sqs.api.model.Message"
-}]]></ee:set-payload>
-						</ee:message>
-					</ee:transform>
-					<sqs:send-message doc:name="Send message" doc:id="84fdb861-b3e8-40fc-90a6-57ba017c7627" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
-				</batch:step>
-			</batch:process-records>
-			<batch:on-complete>
-				<!-- [STUDIO:"Transform Message"]<ee:transform doc:name="Transform Message" doc:id="f7d4eaf6-b76d-40df-939c-ba30a64834f8">
-					<ee:message>
-						<ee:set-payload><![CDATA[%dw 2.0
+				<batch:step name="handle-invalid-records" doc:id="41c47ea1-0f78-44ab-87d0-3735fcb4b87f" acceptPolicy="ONLY_FAILURES" acceptExpression="#[(vars.'_mule_batch_INTERNAL_record'.stepExceptions.&quot;validate-and-process-records&quot;.message) contains(&quot;Json content is not compliant with schema.&quot;)]">
+					<!-- [STUDIO:"Transform Message"]<ee:transform doc:name="Transform Message" doc:id="14230f8c-0029-4a03-9b2e-da68aeca6804" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 &#45;&#45;-
 payload&#93;&#93;></ee:set-payload>
-					</ee:message>
-				</ee:transform> [STUDIO] -->
-				<choice doc:name="Choice" doc:id="9fa79ff7-0f6a-4eb0-b998-e33f1278e73b">
-					<when expression="#[payload.failedRecords &gt; 0]">
-						<logger level="INFO" doc:name="Failed Records" doc:id="2c47fca3-78d6-46de-94b4-af8dedb45279" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Total failed records: " ++ (payload.failedRecords),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}]' category="${logger.category}"/>
-						<sqs:get-approximate-number-of-messages doc:name="Get approximate number of messages" doc:id="06b6d891-b0fe-4af1-993a-c8244fc22bfd" config-ref="aws-sqs-prod-falires-config" queueUrl="${aws.sqs.productFailures.queueUrl}" />
-						<ee:transform doc:name="Transform Message" doc:id="d5db97f2-b756-4f37-8ea1-a979b2d79ef6">
-							<ee:message>
-								<ee:set-payload><![CDATA[%dw 2.0
+						</ee:message>
+						<ee:variables >
+						</ee:variables>
+					</ee:transform> [STUDIO] -->
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="e54492f4-17c8-4fd1-99d7-dc4a12b973c3" streaming="true">
+						<ee:transform doc:name="Transform Message" doc:id="8c9c53ba-8f6c-4a9d-9a8a-9a90eef080f6" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+flatten(payload)]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="c6020169-5742-4548-a544-e7c153296f4f" millisBetweenRetries="${untilSuccess.retriesInterval}">
+							<file:write doc:name="Invalid Schema SKUs" doc:id="4452944d-1817-4f79-abd2-25083d66970c" path='#[p("app.home") ++ "/error/failed_skus_" ++ (vars.jobStartTime as Date {format: "dd-MM-YYYY"} as String) ++ ".csv"]' />
+						</until-successful>
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="handle-technically-failed-records" doc:id="bb56d791-b5e6-4bdf-bc80-5a080b9193b2" acceptPolicy="ONLY_FAILURES" acceptExpression="#[!((vars.'_mule_batch_INTERNAL_record'.stepExceptions.&quot;validate-and-process-records&quot;.message) contains(&quot;Json content is not compliant with schema.&quot;))]">
+					<ee:transform doc:name="Transform Message" doc:id="b903286a-23ce-4b86-964c-c1d8aa499bc6" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
-1 to (ceil(payload/(p("aws.sqs.productFailures.queueMessageCount") as Number)))]]></ee:set-payload>
+payload]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete>
+				<choice doc:name="Choice" doc:id="5a011514-db69-4ba6-afc9-fb7b358ede85" >
+					<when expression='#[payload.batchStepResults."validate-and-process-records".failedRecords &gt; 0]'>
+						<ee:transform doc:name="Transform Message" doc:id="be7aded2-7a09-4fc0-87d5-a050abf080dd">
+							<ee:message>
 							</ee:message>
-							<ee:variables>
-								<ee:set-variable variableName="failedSkus"><![CDATA[[]]]></ee:set-variable>
+							<ee:variables >
+								<ee:set-variable variableName="batchOutput" ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
 							</ee:variables>
 						</ee:transform>
-						<parallel-foreach doc:name="Parallel For Each" doc:id="37c873dd-84e2-44d9-9408-3e4ade3a5009">
-							<sqs:read doc:name="Read" doc:id="4ceae3da-f35d-438f-b095-ddff38c94cf2" config-ref="aws-sqs-prod-falires-config" maxNumberOfMessages="${aws.sqs.productFailures.queueMessageCount}" queueUrl="${aws.sqs.productFailures.queueUrl}" />
-							<ee:transform doc:name="Transform Message" doc:id="fc8c5e69-41c9-4a19-ab8a-ff3145a0acc2">
-							<ee:message>
-									<ee:set-payload><![CDATA[%dw 2.0
-output application/java
----
-payload.body]]></ee:set-payload>
-							</ee:message>
-								<ee:variables>
-								</ee:variables>
-						</ee:transform>
-						</parallel-foreach>
-						<ee:transform doc:name="Transform Message" doc:id="03847c51-4073-4e5e-b6d4-2fabf4acbf54">
-							<ee:message>
-							</ee:message>
-							<ee:variables>
-								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
-output application/csv header=true
-var a = flatten(payload.payload)
----
-(a default [])
-    // drop nulls
-    filter ($ != null)
-    // parse JSON strings to objects
-    map (it) -> if (it is String) read(it, "application/json") else it
-    // normalize fields
-    map (r) -> {
-      SKU:       (r.SKU       default "") as String,
-      StoreId:   (r.StoreId   default "") as String,
-      Type:      (r.Type      default "") as String,
-      Quantity:  (r.Quantity  default "") as String,
-      Timestamp: (r.Timestamp default "") as String
-    }
-]]></ee:set-variable>
-								<ee:set-variable variableName="failureCount"><![CDATA[%dw 2.0
-output application/java
----
-sizeOf(payload)]]></ee:set-variable>
-							</ee:variables>
-						</ee:transform>
-						<ee:transform doc:name="Transform Message" doc:id="7247d1c4-c757-44cc-a251-ea5e5ef2663f">
-							<ee:message>
-							</ee:message>
-							<ee:variables>
-							<ee:set-variable variableName="emailSub"><![CDATA["Failed Skus from Inventory Sync for: " ++ vars.jobStartTime as Date {format:"dd-MM-YYYY"}]]></ee:set-variable>
-							<ee:set-variable variableName="emailBody"><![CDATA["Some SKUS were failed in Job processing. Please look into this on priority."]]></ee:set-variable>
-							<ee:set-variable variableName="supportTeam"><![CDATA[p("email.ops.supportTeam")]]></ee:set-variable>
-							<ee:set-variable variableName="fromAddress"><![CDATA[p("email.ops.fromAddress")]]></ee:set-variable>
-							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")]]></ee:set-variable>
-								<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
+						<flow-ref doc:name="Flow Reference" doc:id="86f24015-d654-4b08-8351-53d36bfd446e" name="read-and-send-failed-skus-subflow" />
+					</when>
+					<otherwise >
+						<logger level="INFO" doc:name="End" doc:id="bcff72b3-d6cf-4f7e-a98b-832b664c5fcf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended without failures. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"Record Count": payload.successfulRecords default 0,&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}" />
+					</otherwise>
+				</choice>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+	<sub-flow name="read-and-send-failed-skus-subflow" doc:id="8f29d854-b8ea-4775-b41c-ce69368d36a7" >
+		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="b5266b73-1966-4fac-9222-e59fb384dbae" millisBetweenRetries="${untilSuccess.retriesInterval}">
+			<file:list doc:name="List Failed SKU File" doc:id="fc5e800c-4f8f-4394-8d65-9b13f5131c6a" directoryPath='#[p("app.home") ++ "/error/"]'>
+			<file:matcher filenamePattern="${pos.failedFilename}" />
+		</file:list>
+		</until-successful>
+		<choice doc:name="Choice" doc:id="31a6230a-0499-4fe0-8934-e49af3a23b4f" >
+			<when expression="#[!isEmpty(payload)]">
+				<file:read doc:name="Failed Skus" doc:id="52cf1afe-5892-4e19-b84c-eeaaa5f19bbe" path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\error\\failed_skus_" ++ (vars.jobStartTime as Date {format: "dd-MM-YYYY"} as String) ++ ".csv"]' />
+				<ee:transform doc:name="Email Metadata" doc:id="4841495c-2bde-45e2-a21e-8b72d81515c4">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="failedSkus"><![CDATA[%dw 2.0
 output text/plain
 var rows =
-      (vars.failedSkus default [])
+      (payload default [])
         // if elements are JSON strings, parse them:
         map (it) -> if (it is String) read(it, "application/json") else it
 ---
 write(rows, "application/csv", { header: true })]]></ee:set-variable>
-						
-							</ee:variables>
-						</ee:transform>
-						<flow-ref doc:name="Flow Reference" doc:id="f7c5daf9-883d-453d-9b38-a6fbe51046c8" name="send-email-notification-subflow" />
-					</when>
-					<otherwise>
-						<logger level="INFO" doc:name="Exit" doc:id="b5aea13d-f5a3-4e36-8bf5-d3b2ed285d9a" category="${logger.category}" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "No failures occured in Sync Job for " ++ (vars.jobStartTime as Date {format:"dd-MM-YYYY"}),&#10;	"EndTime": now(),&#10;	"TracePoint": "FLOW"&#10;}]' />
-					</otherwise>
-				</choice>
-				<logger level="INFO" doc:name="End" doc:id="bcff72b3-d6cf-4f7e-a98b-832b664c5fcf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}"/>
-			</batch:on-complete>
-		</batch:job>
-	</flow>
+			<ee:set-variable variableName="emailSub"><![CDATA["Failed Skus from Inventory Sync for: " ++ vars.jobStartTime as Date {format:"dd-MM-YYYY"}]]></ee:set-variable>
+							<ee:set-variable variableName="emailBody"><![CDATA["Some SKUS were failed in Job processing. Please look into this on priority."]]></ee:set-variable>
+							<ee:set-variable variableName="supportTeam"><![CDATA[p("email.ops.supportTeam")]]></ee:set-variable>
+							<ee:set-variable variableName="fromAddress"><![CDATA[p("email.ops.fromAddress")]]></ee:set-variable>
+							<ee:set-variable variableName="toAddress"><![CDATA[p("email.ops.toAddress")]]></ee:set-variable>
+								
+			</ee:variables>
+		</ee:transform>
+				<flow-ref doc:name="Send Email to Backend Support" doc:id="f26111e5-e358-427d-9f75-553f82516f8c" name="send-email-notification-subflow" />
+				<logger level="INFO" doc:name="End" doc:id="7f9f4742-3f75-49c6-852b-2cf1010ceb35" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended with failures. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"Failed Record Count": vars.batchOutput.failedRecords default 0,&#10;	"Success Record Count": vars.batchOutput.successfulRecords default 0,&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Raise SNOW Incident" doc:id="f557f1f2-51b4-4289-8999-3ce163322332" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "Critical Mulesoft Application error encountered while processing Batch Job.",&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}"/>
+			</otherwise>
+		</choice>
+	</sub-flow>
 </mule>

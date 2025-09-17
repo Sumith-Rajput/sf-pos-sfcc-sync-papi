@@ -13,13 +13,17 @@ http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/
 					<ee:message>
 					</ee:message>
 					<ee:variables>
-				<ee:set-variable resource="dwl/email-template.dwl" variableName="emailTemplate" />
 				<ee:set-variable variableName="attachment" ><![CDATA[%dw 2.0
 output application/java
 ---
 {
 	(("failed_skus_" ++ (vars.jobStartTime as Date {format:"ddMMYYYY"} as String) ++ ".csv"): vars.failedSkus) if(!isEmpty(vars.failedSkus))
 }]]></ee:set-variable>
+				<ee:set-variable variableName="emailBody" ><![CDATA[%dw 2.0
+output application/java
+---
+"Hi " ++ (vars.supportTeam default p("email.ops.supportTeam")) ++ ",\n\n" ++ (vars.emailBody default "")]]></ee:set-variable>
+				<ee:set-variable resource="dwl/email-template.dwl" variableName="emailTemplate" />
 					
 </ee:variables>
 				</ee:transform>
@@ -32,10 +36,10 @@ output application/java
     <email:to-address value="#[vars.emailTemplate.toAddress]"/>
   </email:to-addresses>
 
-  <email:body>
-    <email:content><![CDATA[#[vars.emailTemplate.emailBody]]]></email:content>
+  <email:body contentType="text/plain" encoding="UTF-8">
+    <email:content><![CDATA[#[vars.emailBody as String default ""]]]></email:content>
   </email:body>
-					<email:attachments ><![CDATA[#[vars.attachment default {}]]]></email:attachments>
+					<email:attachments ><![CDATA[#[vars.attachment default null]]]></email:attachments>
 
 </email:send>
 

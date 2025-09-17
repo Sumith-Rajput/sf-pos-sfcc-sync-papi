@@ -29,14 +29,25 @@
 				<version>3.2.0</version>
 			</plugin>
 			<plugin>
-				<groupId>org.mule.tools.maven</groupId>
-				<artifactId>mule-maven-plugin</artifactId>
-				<version>${mule.maven.plugin.version}</version>
-				<extensions>true</extensions>
+			  <groupId>org.mule.tools.maven</groupId>
+			  <artifactId>mule-maven-plugin</artifactId>
+			  <version>${mule.maven.plugin.version}</version>
+			  <configuration>
+			    <cloudhub2Deployment>
+			      <uri>https://anypoint.mulesoft.com</uri>
+			      <provider>MC</provider>
+			      <environment>Sandbox</environment>
+			      <target>Cloudhub-US-East-2</target>
+			      <muleVersion>4.9.6</muleVersion>
+			      <server>anypoint-platform</server>
+			      <applicationName>${project.artifactId}</applicationName>
+			      <replicas>1</replicas>
+			      <vCores>0.2</vCores>   
+			    </cloudhub2Deployment>
+			  </configuration>
 			</plugin>
 		</plugins>
 	</build>
-
 	<dependencies>
 		<dependency>
 			<groupId>org.mule.connectors</groupId>

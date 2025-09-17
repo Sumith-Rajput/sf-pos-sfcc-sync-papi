@@ -433,4 +433,5 @@ type auto_c3d1e7c5_d51c_4ce7_8348_1583917e8991_Output_Variables_cid = Any
   <types:enrichment select="#7247d1c4-c757-44cc-a251-ea5e5ef2663f"/>
   <types:enrichment select="#03847c51-4073-4e5e-b6d4-2fabf4acbf54"/>
   <types:enrichment select="#90d78a95-56f2-4bc2-8a1e-b9a89b207f24"/>
+  <types:enrichment select="#14230f8c-0029-4a03-9b2e-da68aeca6804"/>
 </types:mule>
