@@ -99,7 +99,7 @@ write(rows, "application/csv", { header: true })&#93;&#93;></ee:set-variable>
 					</otherwise>
 				</choice>
 	</sub-flow> [STUDIO] -->
-	<flow name="sf-pos-sfcc-sync-papiFlow" doc:id="7176be6c-da4a-4145-94af-3fe7f23e3839" initialState="stopped">
+	<flow name="sf-pos-sfcc-sync-papiFlow" doc:id="7176be6c-da4a-4145-94af-3fe7f23e3839" initialState="started">
 		<scheduler doc:name="Nightly Job Run at 4AM" doc:id="8a6814ad-bb31-4d64-87cf-414709466dab">
 			<scheduling-strategy>
 				<cron expression="${scheduler.productSync.cron}" timeZone="${scheduler.productSync.timezone}" />
