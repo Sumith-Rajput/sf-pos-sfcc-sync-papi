@@ -221,7 +221,7 @@ payload]]></ee:set-variable>
 		</until-successful>
 		<choice doc:name="Choice" doc:id="31a6230a-0499-4fe0-8934-e49af3a23b4f" >
 			<when expression="#[!isEmpty(payload)]">
-				<file:read doc:name="Failed Skus" doc:id="52cf1afe-5892-4e19-b84c-eeaaa5f19bbe" path='#["C:\\Users\\sumkumar51\\sf-usecase\\POS\\error\\failed_skus_" ++ (vars.jobStartTime as Date {format: "dd-MM-YYYY"} as String) ++ ".csv"]' />
+				<file:read doc:name="Failed Skus" doc:id="52cf1afe-5892-4e19-b84c-eeaaa5f19bbe" path='#[p("app.home") ++ "/error/failed_skus_" ++ (vars.jobStartTime as Date {format: "dd-MM-YYYY"} as String) ++ ".csv"]' />
 				<ee:transform doc:name="Email Metadata" doc:id="4841495c-2bde-45e2-a21e-8b72d81515c4">
 			<ee:message>
 			</ee:message>
