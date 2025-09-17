@@ -204,7 +204,7 @@ output application/json
 payload]]></ee:set-variable>
 							</ee:variables>
 						</ee:transform>
-						<flow-ref doc:name="Flow Reference" doc:id="86f24015-d654-4b08-8351-53d36bfd446e" name="read-and-send-failed-skus-subflow" />
+						<flow-ref doc:name="Handle Errors Subflow" doc:id="86f24015-d654-4b08-8351-53d36bfd446e" name="read-and-send-failed-skus-subflow" />
 					</when>
 					<otherwise >
 						<logger level="INFO" doc:name="End" doc:id="bcff72b3-d6cf-4f7e-a98b-832b664c5fcf" message='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"correlationId": vars.cid,&#10;	"JobID": vars.jobId,&#10;	"Message": "POS Sync to SFCC Job has Ended without failures. Time Elapsed: " ++ (now() - vars.jobStartTime),&#10;	"Record Count": payload.successfulRecords default 0,&#10;	"EndTime": now(),&#10;	"TracePoint": "END"&#10;}]' category="${logger.category}" />
@@ -212,6 +212,7 @@ payload]]></ee:set-variable>
 				</choice>
 			</batch:on-complete>
 		</batch:job>
+		<error-handler ref="global_error_handler" />
 	</flow>
 	<sub-flow name="read-and-send-failed-skus-subflow" doc:id="8f29d854-b8ea-4775-b41c-ce69368d36a7" >
 		<until-successful maxRetries="${untilSuccess.retriesCount}" doc:name="Until Successful" doc:id="b5266b73-1966-4fac-9222-e59fb384dbae" millisBetweenRetries="${untilSuccess.retriesInterval}">
